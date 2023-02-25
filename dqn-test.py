@@ -9,6 +9,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from IPython.display import clear_output
+import random
+import os
 
 
 # Replay buffer
@@ -191,7 +193,7 @@ class DQNAgent:
     def train(self, num_frames: int, plotting_interval: int = 1000):
         """Train the agent."""
         self.is_test = False
-
+        self.dqn.train(mode=True) # test kill random
         state = self.env.reset()
         update_cnt = 0
         epsilons = []
@@ -239,7 +241,7 @@ class DQNAgent:
     def test(self, video_folder: str):
         """Test the agent."""
         self.is_test = True
-
+        self.dqn.eval() # test kill random
         # for recording a video
         naive_env = self.env
         # self.env = gym.wrappers.RecordVideo(self.env, video_folder=video_folder)
@@ -255,12 +257,13 @@ class DQNAgent:
             state = next_state
             score += reward
 
-        print("score: ", score)
+        # print("score: ", score)
         self.env.close()
 
         # reset
         self.env = naive_env
         return score
+
     def _compute_dqn_loss(self, samples: Dict[str, np.ndarray]) -> torch.Tensor:
         """Return dqn loss."""
         device = self.device  # for shortening the following lines
@@ -299,7 +302,7 @@ class DQNAgent:
         clear_output(True)
         plt.figure(figsize=(20, 5))
         plt.subplot(131)
-        plt.title('frame %s. score: %s' % (frame_idx, np.mean(scores[-10:])))
+        plt.title('epoch %s. avg_Q: %s' % (frame_idx, np.mean(scores[-10:])))
         plt.plot(scores)
         plt.subplot(132)
         plt.title('loss')
@@ -313,24 +316,25 @@ class DQNAgent:
 # Environment
 env_id = "CartPole-v0"
 env = gym.make(env_id)
-seed = 777
-
 
 # Set random seed
+seed = 777
+
 def seed_torch(seed):
     torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed) # New
     if torch.backends.cudnn.enabled:
         torch.backends.cudnn.benchmark = False
         torch.backends.cudnn.deterministic = True
 
 np.random.seed(seed)
+os.environ['PYTHONHASHSEED'] = str(seed)
 seed_torch(seed)
 env.seed(seed)
+env.action_space.seed(777)
 
 # Initialize
 # parameters
-num_frames = 3000
+num_frames = 10000
 memory_size = 1000
 batch_size = 32
 target_update = 100
@@ -342,27 +346,19 @@ agent = DQNAgent(env, memory_size, batch_size, target_update, epsilon_decay)
 # Train
 agent.train(num_frames)
 
-# Test
-video_folder="videos"
-print("Test 1 ", end="")
-t1 = agent.test(video_folder=video_folder)
-print("Test 2 ", end="")
-t2 = agent.test(video_folder=video_folder)
-print("Test 3 ", end="")
-t3 = agent.test(video_folder=video_folder)
-print("Test 4 ", end="")
-t4 = agent.test(video_folder=video_folder)
-print("Test 5 ", end="")
-t5 = agent.test(video_folder=video_folder)
-test_sum = t1 + t2 + t3 + t4 + t5
-test_avg = test_sum / 5
-print(f"Test average {test_avg}")
-
+# New Test - 20 tests result and their avg
+video_folder = "videos"
+result_sum = 0
+for i in range(30):
+    result = agent.test(video_folder=video_folder)
+    print(result)
+    result = int(result)
+    result_sum += result
+print(result_sum / 30) # print avg of cumulative reward
 # Render (Please don't change this part of code)
 import base64
 import glob
 import io
-import os
 
 from IPython.display import HTML, display
 
